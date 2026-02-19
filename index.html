@@ -3,8 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Remitos → Excel · AI</title>
+<title>Remitos → Excel · OCR Local</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<!-- PDF.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<!-- Tesseract.js -->
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<!-- SheetJS -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root {
@@ -12,8 +17,8 @@
     --surface: #161920;
     --surface2: #1e2230;
     --border: #2a2f40;
-    --accent: #10a37f;
-    --accent2: #1ad6a4;
+    --accent: #7c3aed;
+    --accent2: #a78bfa;
     --danger: #ef4444;
     --danger-soft: #2d1515;
     --text: #e2e8f0;
@@ -27,7 +32,7 @@
   body { font-family: 'Syne', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
   body::before {
     content: ''; position: fixed; inset: 0;
-    background-image: linear-gradient(rgba(16,163,127,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(16,163,127,0.04) 1px, transparent 1px);
+    background-image: linear-gradient(rgba(124,58,237,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(124,58,237,0.04) 1px, transparent 1px);
     background-size: 40px 40px; pointer-events: none; z-index: 0;
   }
   .container { max-width: 1020px; margin: 0 auto; padding: 40px 24px 80px; position: relative; z-index: 1; }
@@ -36,25 +41,16 @@
   .logo-area h1 { font-size: 28px; font-weight: 800; letter-spacing: -0.5px; }
   .logo-area h1 span { color: var(--accent2); }
   .logo-area p { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--text-muted); margin-top: 6px; letter-spacing: 0.05em; text-transform: uppercase; }
-  .badge { font-family: 'DM Mono', monospace; font-size: 10px; background: rgba(16,163,127,0.12); color: var(--accent2); border: 1px solid rgba(16,163,127,0.3); padding: 4px 10px; border-radius: 20px; letter-spacing: 0.05em; align-self: flex-start; }
+  .badge { font-family: 'DM Mono', monospace; font-size: 10px; background: rgba(124,58,237,0.12); color: var(--accent2); border: 1px solid rgba(124,58,237,0.3); padding: 4px 10px; border-radius: 20px; letter-spacing: 0.05em; align-self: flex-start; }
 
   .section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px; margin-bottom: 20px; }
   .section-title { font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 20px; display: flex; align-items: center; gap: 8px; }
   .section-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
 
-  .api-row { display: flex; gap: 10px; }
-  .api-row input { flex: 1; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-family: 'DM Mono', monospace; font-size: 13px; padding: 10px 14px; outline: none; transition: border-color 0.15s; }
-  .api-row input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(16,163,127,0.1); }
-  .api-note { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--text-muted); margin-top: 8px; }
-  .api-note a { color: var(--accent2); text-decoration: none; }
-  .api-note a:hover { text-decoration: underline; }
-
-  /* PDF mode notice */
-  .notice { background: rgba(16,163,127,0.07); border: 1px solid rgba(16,163,127,0.2); border-radius: 8px; padding: 12px 16px; font-family: 'DM Mono', monospace; font-size: 11px; color: var(--accent2); margin-bottom: 16px; line-height: 1.6; }
-  .notice strong { color: var(--text-dim); }
+  .notice { background: rgba(124,58,237,0.07); border: 1px solid rgba(124,58,237,0.2); border-radius: 8px; padding: 12px 16px; font-family: 'DM Mono', monospace; font-size: 11px; color: var(--accent2); margin-bottom: 16px; line-height: 1.7; }
 
   .dropzone { border: 2px dashed var(--border); border-radius: var(--radius); padding: 48px 24px; text-align: center; cursor: pointer; transition: all 0.2s; position: relative; }
-  .dropzone:hover, .dropzone.drag { border-color: var(--accent); background: rgba(16,163,127,0.03); }
+  .dropzone:hover, .dropzone.drag { border-color: var(--accent); background: rgba(124,58,237,0.04); }
   .dropzone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
   .dropzone-icon { font-size: 36px; margin-bottom: 12px; }
   .dropzone h3 { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
@@ -63,18 +59,32 @@
 
   .analyze-wrap { display: flex; justify-content: center; margin-top: 20px; }
 
+  /* Progress */
+  .progress-wrap { margin-top: 20px; display: none; }
+  .progress-wrap.show { display: block; }
+  .progress-label { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--accent2); margin-bottom: 8px; display: flex; justify-content: space-between; }
+  .progress-bar-bg { background: var(--surface2); border-radius: 20px; height: 6px; overflow: hidden; }
+  .progress-bar { background: linear-gradient(90deg, var(--accent), var(--accent2)); height: 100%; border-radius: 20px; transition: width 0.3s; width: 0%; }
+
   .status-bar { display: none; align-items: center; gap: 12px; padding: 14px 18px; border-radius: 8px; font-family: 'DM Mono', monospace; font-size: 12px; margin-top: 16px; }
-  .status-bar.loading { background: rgba(16,163,127,0.08); border: 1px solid rgba(16,163,127,0.2); color: var(--accent2); display: flex; }
+  .status-bar.loading { background: rgba(124,58,237,0.08); border: 1px solid rgba(124,58,237,0.2); color: var(--accent2); display: flex; }
   .status-bar.success { background: var(--green-soft); border: 1px solid rgba(34,197,94,0.25); color: var(--green); display: flex; }
   .status-bar.error { background: var(--danger-soft); border: 1px solid rgba(239,68,68,0.25); color: var(--danger); display: flex; }
-  .spinner { width: 14px; height: 14px; border: 2px solid rgba(16,163,127,0.3); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; flex-shrink: 0; }
+  .spinner { width: 14px; height: 14px; border: 2px solid rgba(124,58,237,0.3); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; flex-shrink: 0; }
   @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Debug text */
+  .debug-wrap { margin-top: 16px; display: none; }
+  .debug-wrap.show { display: block; }
+  .debug-wrap summary { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--text-muted); cursor: pointer; padding: 8px 0; }
+  .debug-wrap summary:hover { color: var(--accent2); }
+  .debug-text { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 12px; font-family: 'DM Mono', monospace; font-size: 10px; color: var(--text-muted); max-height: 200px; overflow-y: auto; white-space: pre-wrap; margin-top: 8px; line-height: 1.5; }
 
   .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
   .form-group { display: flex; flex-direction: column; gap: 6px; }
   .form-group label { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--text-muted); letter-spacing: 0.05em; text-transform: uppercase; }
   .form-group input { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-family: 'DM Mono', monospace; font-size: 13px; padding: 10px 14px; outline: none; transition: border-color 0.15s; width: 100%; }
-  .form-group input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(16,163,127,0.1); }
+  .form-group input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(124,58,237,0.1); }
   .form-group input::placeholder { color: var(--text-muted); }
 
   .table-wrapper { overflow-x: auto; border-radius: 8px; border: 1px solid var(--border); }
@@ -95,27 +105,26 @@
   .btn { font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700; padding: 11px 22px; border-radius: 8px; border: none; cursor: pointer; transition: all 0.15s; display: flex; align-items: center; gap: 8px; letter-spacing: 0.02em; }
   .btn:disabled { opacity: 0.4; cursor: not-allowed; }
   .btn-primary { background: var(--accent); color: #fff; }
-  .btn-primary:hover:not(:disabled) { background: #0d8f6f; transform: translateY(-1px); box-shadow: 0 4px 20px rgba(16,163,127,0.35); }
+  .btn-primary:hover:not(:disabled) { background: #6d28d9; transform: translateY(-1px); box-shadow: 0 4px 20px rgba(124,58,237,0.4); }
   .btn-secondary { background: var(--surface2); color: var(--text-dim); border: 1px solid var(--border); }
   .btn-secondary:hover:not(:disabled) { border-color: var(--accent); color: var(--accent2); }
   .btn-ghost { background: none; color: var(--text-muted); border: 1px dashed var(--border); }
-  .btn-ghost:hover:not(:disabled) { border-color: var(--accent); color: var(--accent2); background: rgba(16,163,127,0.05); }
-  .btn-export { background: #3b82f6; color: #fff; font-weight: 800; }
-  .btn-export:hover:not(:disabled) { background: #2563eb; transform: translateY(-1px); box-shadow: 0 4px 20px rgba(59,130,246,0.35); }
+  .btn-ghost:hover:not(:disabled) { border-color: var(--accent); color: var(--accent2); background: rgba(124,58,237,0.05); }
+  .btn-export { background: var(--green); color: #000; font-weight: 800; }
+  .btn-export:hover:not(:disabled) { background: #16a34a; transform: translateY(-1px); box-shadow: 0 4px 20px rgba(34,197,94,0.35); }
 
   .info-bar { display: flex; gap: 24px; flex-wrap: wrap; font-family: 'DM Mono', monospace; font-size: 11px; color: var(--text-muted); margin-top: 12px; }
   .info-bar span { display: flex; align-items: center; gap: 6px; }
   .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); display: inline-block; }
   .dot.warn { background: var(--danger); }
 
-  #toast { position: fixed; bottom: 32px; right: 32px; background: #3b82f6; color: #fff; font-family: 'DM Mono', monospace; font-size: 12px; font-weight: 500; padding: 12px 20px; border-radius: 8px; opacity: 0; transform: translateY(10px); transition: all 0.3s; z-index: 999; pointer-events: none; }
+  #toast { position: fixed; bottom: 32px; right: 32px; background: var(--green); color: #000; font-family: 'DM Mono', monospace; font-size: 12px; font-weight: 500; padding: 12px 20px; border-radius: 8px; opacity: 0; transform: translateY(10px); transition: all 0.3s; z-index: 999; pointer-events: none; }
   #toast.show { opacity: 1; transform: translateY(0); }
 
   @media (max-width: 600px) {
     .form-row { grid-template-columns: 1fr; }
     .actions { flex-direction: column; }
     .btn { width: 100%; justify-content: center; }
-    .api-row { flex-direction: column; }
   }
 </style>
 </head>
@@ -124,45 +133,53 @@
 
   <header>
     <div class="logo-area">
-      <h1>Remitos → <span>Excel</span> · AI</h1>
-      <p>Cargá un PDF · GPT-4o lo analiza · Descargá el .xlsx</p>
+      <h1>Remitos → <span>Excel</span> · OCR</h1>
+      <p>OCR local · Sin internet · Sin APIs · 100% gratis</p>
     </div>
-    <div class="badge">POWERED BY OPENAI</div>
+    <div class="badge">LOCAL · SIN SERVIDOR</div>
   </header>
-
-  <!-- API Key -->
-  <div class="section">
-    <div class="section-title">API Key de OpenAI</div>
-    <div class="api-row">
-      <input type="password" id="apiKey" placeholder="sk-..." autocomplete="off">
-    </div>
-    <p class="api-note">
-      Tu clave nunca sale de tu navegador · Conseguila en
-      <a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com/api-keys</a>
-      · Costo: ~$0.01 por remito
-    </p>
-  </div>
 
   <!-- Upload -->
   <div class="section">
-    <div class="section-title">Cargar Documento</div>
+    <div class="section-title">Cargar PDF Escaneado</div>
     <div class="notice">
-      <strong>📎 PDF o imagen:</strong> Podés subir el PDF directamente o una foto/captura del remito. GPT-4o mini analiza ambos formatos.
+      ⚡ Todo corre en tu navegador. El PDF nunca sale de tu PC.<br>
+      ⏱ PDFs escaneados tardan ~20-40 segundos por página (OCR local con Tesseract.js).<br>
+      ✏️ Podés corregir cualquier dato en la tabla antes de exportar.
     </div>
     <div class="dropzone" id="dropzone">
       <input type="file" accept=".pdf,image/*" id="fileInput" onchange="onFileSelected(this)">
       <div class="dropzone-icon" id="dzIcon">📄</div>
       <h3 id="dropTitle">Arrastrá el PDF o hacé click</h3>
-      <p id="dropSub">PDF e imágenes · Remito o Confirmación de pedido</p>
+      <p id="dropSub">PDF escaneado o imagen del remito</p>
     </div>
+
     <div class="analyze-wrap">
-      <button class="btn btn-primary" id="btnAnalyze" onclick="analyzeDocument()" disabled>
-        ✦ Analizar con GPT-4o
+      <button class="btn btn-primary" id="btnAnalyze" onclick="analizarDocumento()" disabled>
+        ◉ Leer con OCR
       </button>
     </div>
+
+    <div class="progress-wrap" id="progressWrap">
+      <div class="progress-label">
+        <span id="progressLabel">Iniciando...</span>
+        <span id="progressPct">0%</span>
+      </div>
+      <div class="progress-bar-bg">
+        <div class="progress-bar" id="progressBar"></div>
+      </div>
+    </div>
+
     <div class="status-bar" id="statusBar">
       <div class="spinner" id="statusSpinner"></div>
       <span id="statusText"></span>
+    </div>
+
+    <div class="debug-wrap" id="debugWrap">
+      <details>
+        <summary>🔍 Ver texto extraído por OCR (para debug)</summary>
+        <div class="debug-text" id="debugText"></div>
+      </details>
     </div>
   </div>
 
@@ -171,8 +188,8 @@
     <div class="section-title">Datos del Documento</div>
     <div class="form-row">
       <div class="form-group">
-        <label>Número de Remito / Pedido</label>
-        <input id="nroRemito" type="text" placeholder="0044-00167431">
+        <label>Número de Remito</label>
+        <input id="nroRemito" type="text" placeholder="0044-00233640">
       </div>
       <div class="form-group">
         <label>Fecha</label>
@@ -223,6 +240,9 @@
 <div id="toast">✓ Excel generado correctamente</div>
 
 <script>
+// Setup PDF.js worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
 let rowId = 0;
 let selectedFile = null;
 
@@ -234,7 +254,7 @@ function onFileSelected(input) {
   document.getElementById('dropzone').classList.add('file-selected');
   document.getElementById('dzIcon').textContent = '✅';
   document.getElementById('dropTitle').textContent = file.name;
-  document.getElementById('dropSub').textContent = `${(file.size/1024).toFixed(1)} KB · listo para analizar`;
+  document.getElementById('dropSub').textContent = `${(file.size/1024).toFixed(1)} KB · listo para OCR`;
   document.getElementById('btnAnalyze').disabled = false;
 }
 
@@ -250,120 +270,12 @@ dz.addEventListener('drop', e => {
   onFileSelected(document.getElementById('fileInput'));
 });
 
-// ── Analyze with OpenAI ─────────────────────────────────
-async function analyzeDocument() {
-  const apiKey = document.getElementById('apiKey').value.trim();
-  if (!apiKey) { showStatus('error', '⚠ Ingresá tu API Key de OpenAI primero.'); return; }
-  if (!selectedFile) { showStatus('error', '⚠ Seleccioná un archivo primero.'); return; }
-
-  showStatus('loading', 'Leyendo archivo...');
-  document.getElementById('btnAnalyze').disabled = true;
-
-  try {
-    const isPDF = selectedFile.type === 'application/pdf';
-    const base64 = await fileToBase64(selectedFile);
-
-    showStatus('loading', 'Enviando a GPT-4o mini...');
-
-    const prompt = `Analizá este documento (remito o confirmación de pedido).
-Extraé:
-1. Número de remito o pedido
-2. Fecha (formato YYYY-MM-DD)
-3. Nombre del cliente
-4. Número de pedido del cliente (si existe)
-5. Todos los ítems con: Item, Referencia, Descripción, Cantidad
-
-Respondé ÚNICAMENTE con JSON válido, sin texto extra ni markdown:
-{
-  "nroRemito": "...",
-  "fecha": "YYYY-MM-DD",
-  "cliente": "...",
-  "nroPedido": "...",
-  "items": [
-    { "item": "10", "ref": "A9F74310", "desc": "INT. TERMOMAG. IC60N 3X10A", "cant": 30 }
-  ]
-}`;
-
-    let messages;
-    if (isPDF) {
-      // PDFs via file upload + responses API approach:
-      // For simplicity, convert first page to image approach isn't available in browser.
-      // We send as base64 URL with application/pdf - GPT-4o supports this.
-      messages = [{
-        role: 'user',
-        content: [
-          {
-            type: 'file',
-            file: {
-              filename: selectedFile.name,
-              file_data: `data:application/pdf;base64,${base64}`
-            }
-          },
-          { type: 'text', text: prompt }
-        ]
-      }];
-    } else {
-      // Image
-      messages = [{
-        role: 'user',
-        content: [
-          {
-            type: 'image_url',
-            image_url: { url: `data:${selectedFile.type};base64,${base64}`, detail: 'high' }
-          },
-          { type: 'text', text: prompt }
-        ]
-      }];
-    }
-
-    const res = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        max_tokens: 2000,
-        messages
-      })
-    });
-
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error?.message || `HTTP ${res.status}`);
-    }
-
-    const data = await res.json();
-    const text = data.choices?.[0]?.message?.content || '';
-    const clean = text.replace(/```json|```/g, '').trim();
-    const parsed = JSON.parse(clean);
-
-    if (parsed.nroRemito) document.getElementById('nroRemito').value = parsed.nroRemito;
-    if (parsed.fecha)     document.getElementById('fecha').value = parsed.fecha;
-    if (parsed.cliente)   document.getElementById('cliente').value = parsed.cliente;
-    if (parsed.nroPedido) document.getElementById('nroPedido').value = parsed.nroPedido;
-
-    document.getElementById('tbody').innerHTML = '';
-    rowId = 0;
-    (parsed.items || []).forEach(item => addRow(item));
-
-    showStatus('success', `✓ ${parsed.items?.length || 0} ítems extraídos correctamente`);
-  } catch(err) {
-    showStatus('error', `✗ ${err.message}`);
-    console.error(err);
-  } finally {
-    document.getElementById('btnAnalyze').disabled = false;
-  }
-}
-
-function fileToBase64(file) {
-  return new Promise((res, rej) => {
-    const r = new FileReader();
-    r.onload = () => res(r.result.split(',')[1]);
-    r.onerror = () => rej(new Error('Error leyendo el archivo'));
-    r.readAsDataURL(file);
-  });
+// ── Progress ────────────────────────────────────────────
+function setProgress(pct, label) {
+  document.getElementById('progressWrap').classList.add('show');
+  document.getElementById('progressBar').style.width = pct + '%';
+  document.getElementById('progressPct').textContent = Math.round(pct) + '%';
+  document.getElementById('progressLabel').textContent = label;
 }
 
 function showStatus(type, msg) {
@@ -371,6 +283,214 @@ function showStatus(type, msg) {
   bar.className = `status-bar ${type}`;
   document.getElementById('statusSpinner').style.display = type === 'loading' ? 'block' : 'none';
   document.getElementById('statusText').textContent = msg;
+}
+
+// ── PDF → Canvas → OCR ─────────────────────────────────
+async function pdfPageToCanvas(page, scale = 3.0) {
+  const viewport = page.getViewport({ scale });
+  const canvas = document.createElement('canvas');
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
+  const ctx = canvas.getContext('2d');
+
+  // Fondo blanco
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  await page.render({ canvasContext: ctx, viewport }).promise;
+  return canvas;
+}
+
+async function ocrCanvas(canvas, pageNum, totalPages) {
+  const worker = await Tesseract.createWorker('spa+eng', 1, {
+    logger: m => {
+      if (m.status === 'recognizing text') {
+        const base = ((pageNum - 1) / totalPages) * 100;
+        const step = (1 / totalPages) * 100;
+        setProgress(base + m.progress * step, `OCR página ${pageNum}/${totalPages}...`);
+      }
+    }
+  });
+
+  await worker.setParameters({
+    tessedit_pageseg_mode: '6',   // bloque uniforme de texto
+  });
+
+  const { data: { text } } = await worker.recognize(canvas);
+  await worker.terminate();
+  return text;
+}
+
+// ── Main analyzer ───────────────────────────────────────
+async function analizarDocumento() {
+  if (!selectedFile) return;
+  document.getElementById('btnAnalyze').disabled = true;
+  document.getElementById('progressWrap').classList.add('show');
+  document.getElementById('debugWrap').classList.remove('show');
+  showStatus('loading', 'Cargando PDF...');
+
+  try {
+    let textoTotal = '';
+
+    if (selectedFile.type === 'application/pdf') {
+      // PDF → extraer páginas
+      const arrayBuffer = await selectedFile.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      const totalPages = pdf.numPages;
+
+      for (let p = 1; p <= totalPages; p++) {
+        setProgress(((p-1)/totalPages)*100, `Renderizando página ${p}/${totalPages}...`);
+        const page = await pdf.getPage(p);
+
+        // Intentar extraer texto digital primero
+        const textContent = await page.getTextContent();
+        const textoDigital = textContent.items.map(i => i.str).join(' ');
+
+        if (textoDigital.trim().length > 100) {
+          // PDF digital — usar texto directo
+          textoTotal += textoDigital + '\n';
+          setProgress((p/totalPages)*100, `Texto extraído (digital) página ${p}`);
+        } else {
+          // PDF escaneado — usar OCR
+          const canvas = await pdfPageToCanvas(page, 3.0);
+          const texto = await ocrCanvas(canvas, p, totalPages);
+          textoTotal += texto + '\n';
+        }
+      }
+    } else {
+      // Imagen directa
+      setProgress(10, 'Procesando imagen...');
+      const imgUrl = URL.createObjectURL(selectedFile);
+      const img = new Image();
+      await new Promise(r => { img.onload = r; img.src = imgUrl; });
+
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0);
+
+      const texto = await ocrCanvas(canvas, 1, 1);
+      textoTotal = texto;
+    }
+
+    // Mostrar texto para debug
+    document.getElementById('debugText').textContent = textoTotal;
+    document.getElementById('debugWrap').classList.add('show');
+
+    setProgress(95, 'Extrayendo datos...');
+
+    // Parsear datos
+    const datos = parsearTexto(textoTotal);
+
+    // Llenar formulario
+    if (datos.nroRemito) document.getElementById('nroRemito').value = datos.nroRemito;
+    if (datos.fecha)     document.getElementById('fecha').value = datos.fecha;
+    if (datos.cliente)   document.getElementById('cliente').value = datos.cliente;
+    if (datos.nroPedido) document.getElementById('nroPedido').value = datos.nroPedido;
+
+    // Llenar tabla
+    document.getElementById('tbody').innerHTML = '';
+    rowId = 0;
+    datos.items.forEach(it => addRow(it));
+
+    setProgress(100, 'Completado');
+    showStatus('success', `✓ ${datos.items.length} ítems extraídos. Revisá y corregí si es necesario.`);
+
+  } catch(err) {
+    showStatus('error', `✗ Error: ${err.message}`);
+    console.error(err);
+  } finally {
+    document.getElementById('btnAnalyze').disabled = false;
+  }
+}
+
+// ── Parser de texto OCR ─────────────────────────────────
+function parsearTexto(texto) {
+  const lineas = texto.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+
+  // Número de remito
+  let nroRemito = '';
+  const mNro = texto.match(/N[°o0º]\s*(\d{4}-\d{8})/i) || texto.match(/(\d{4}-\d{8})/);
+  if (mNro) nroRemito = mNro[1];
+
+  // Fecha
+  let fecha = new Date().toISOString().split('T')[0];
+  const mFecha = texto.match(/FECHA[:\s]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4})/i)
+               || texto.match(/(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4})/);
+  if (mFecha) {
+    const p = mFecha[1].split(/[\/\-]/);
+    if (p.length === 3) fecha = `${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`;
+  }
+
+  // Cliente
+  let cliente = '';
+  const mCliente = texto.match(/(?:Se[ñn]or[ae]?s?|CLIENTE)[:\s]*\n?([A-ZÁÉÍÓÚ][A-ZÁÉÍÓÚ\s\.]{3,40}S\.A\.)/i);
+  if (mCliente) cliente = mCliente[1].trim();
+  if (!cliente) {
+    const mBagnols = texto.match(/(BAGNOLS\s+S\.?A\.?)/i);
+    if (mBagnols) cliente = mBagnols[1].trim();
+  }
+
+  // Número de pedido
+  let nroPedido = '';
+  const mPed = texto.match(/(?:Ped(?:ido)?\.?\s*N[°o]?:?\s*)(\d{9,})/i);
+  if (mPed) nroPedido = mPed[1];
+
+  // ── Ítems ────────────────────────────────────────────
+  const items = [];
+  const excluir = ['PED','DESP','FECHA','COND','IVA','PESO','BULTO','FLETE','SCH','SIGN'];
+
+  // Patrón principal: ítem (múltiplo de 10) + referencia + descripción + cantidad
+  // Ejemplo: "10 28958 2 CUBREBORNES 3/4P (INS100/160) 1"
+  const patronItem = /^\s*(\d{1,3}0)\s+([A-Z0-9][A-Z0-9\-]{2,18})\s+(.{8,70?})\s+(\d{1,4})\s*$/;
+  const patronFlex = /^\s*(\d{1,3}0)\s+([A-Z0-9][A-Z0-9\-]{2,18})\s+(.+)/;
+
+  for (let i = 0; i < lineas.length; i++) {
+    const linea = lineas[i];
+
+    // Patrón completo con cantidad al final
+    let m = linea.match(patronItem);
+    if (m) {
+      const ref = m[2].trim();
+      if (!excluir.some(e => ref.startsWith(e))) {
+        items.push({ item: m[1], ref, desc: limpiarDesc(m[3]), cant: parseInt(m[4]) });
+        continue;
+      }
+    }
+
+    // Patrón flexible
+    m = linea.match(patronFlex);
+    if (m) {
+      const ref = m[2].trim();
+      if (excluir.some(e => ref.startsWith(e))) continue;
+      if (ref.length < 4) continue;
+
+      let desc = m[3].trim();
+      let cant = 1;
+
+      // Cantidad al final de la descripción
+      const mCant = desc.match(/^(.*?)\s+(\d{1,4})\s*$/);
+      if (mCant) {
+        desc = mCant[1].trim();
+        cant = parseInt(mCant[2]);
+      } else if (i + 1 < lineas.length) {
+        // Cantidad en línea siguiente
+        const mNext = lineas[i+1].match(/^\s*(\d{1,4})\s*$/);
+        if (mNext) { cant = parseInt(mNext[1]); i++; }
+      }
+
+      items.push({ item: m[1], ref, desc: limpiarDesc(desc), cant });
+    }
+  }
+
+  return { nroRemito, fecha, cliente, nroPedido, items };
+}
+
+function limpiarDesc(desc) {
+  return desc.replace(/[|\\{}\[\]<>]/g, '').replace(/\s+/g, ' ').trim();
 }
 
 // ── Table ───────────────────────────────────────────────
