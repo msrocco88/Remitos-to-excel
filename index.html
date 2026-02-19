@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Generador de Remitos · Schneider Electric</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --bg: #0d0f14;
+    --surface: #161920;
+    --surface2: #1e2230;
+    --border: #2a2f40;
+    --accent: #3b82f6;
+    --accent2: #60a5fa;
+    --danger: #ef4444;
+    --danger-soft: #2d1515;
+    --text: #e2e8f0;
+    --text-muted: #64748b;
+    --text-dim: #94a3b8;
+    --green: #22c55e;
+    --yellow: #f59e0b;
+    --radius: 10px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Syne', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Background grid */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(59,130,246,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(59,130,246,0.04) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Header */
+  header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 48px;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .logo-area h1 {
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    line-height: 1.1;
+  }
+
+  .logo-area h1 span {
+    color: var(--accent2);
+  }
+
+  .logo-area p {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 6px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  .badge {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    background: rgba(59,130,246,0.15);
+    color: var(--accent2);
+    border: 1px solid rgba(59,130,246,0.3);
+    padding: 4px 10px;
+    border-radius: 20px;
+    letter-spacing: 0.05em;
+  }
+
+  /* Section */
+  .section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 28px;
+    margin-bottom: 20px;
+  }
+
+  .section-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* Form grid */
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .form-group label {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  .form-group input {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    padding: 10px 14px;
+    outline: none;
+    transition: border-color 0.15s;
+    width: 100%;
+  }
+
+  .form-group input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+  }
+
+  .form-group input::placeholder { color: var(--text-muted); }
+
+  /* Table */
+  .table-wrapper {
+    overflow-x: auto;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  thead th {
+    background: var(--surface2);
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+    padding: 12px 14px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+
+  tbody tr {
+    border-bottom: 1px solid rgba(42,47,64,0.6);
+    transition: background 0.1s;
+  }
+
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: rgba(255,255,255,0.02); }
+
+  tbody td {
+    padding: 4px 6px;
+    vertical-align: middle;
+  }
+
+  tbody td input {
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 5px;
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    padding: 7px 10px;
+    width: 100%;
+    outline: none;
+    transition: all 0.15s;
+  }
+
+  tbody td input:focus {
+    background: var(--surface2);
+    border-color: var(--accent);
+  }
+
+  tbody td input.repeated {
+    color: var(--danger);
+    font-weight: 500;
+  }
+
+  .repeated-tag {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    background: var(--danger-soft);
+    color: var(--danger);
+    border: 1px solid rgba(239,68,68,0.3);
+    padding: 2px 6px;
+    border-radius: 20px;
+    margin-left: 6px;
+    white-space: nowrap;
+    vertical-align: middle;
+  }
+
+  .btn-remove {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 16px;
+    padding: 6px 10px;
+    border-radius: 5px;
+    transition: all 0.15s;
+    line-height: 1;
+  }
+
+  .btn-remove:hover { color: var(--danger); background: var(--danger-soft); }
+
+  /* Buttons */
+  .actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 20px;
+    align-items: center;
+  }
+
+  .btn {
+    font-family: 'Syne', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 11px 22px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    letter-spacing: 0.02em;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+  }
+  .btn-primary:hover { background: #2563eb; transform: translateY(-1px); box-shadow: 0 4px 20px rgba(59,130,246,0.35); }
+
+  .btn-secondary {
+    background: var(--surface2);
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+  }
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent2); }
+
+  .btn-ghost {
+    background: none;
+    color: var(--text-muted);
+    border: 1px dashed var(--border);
+  }
+  .btn-ghost:hover { border-color: var(--accent); color: var(--accent2); background: rgba(59,130,246,0.05); }
+
+  /* Info bar */
+  .info-bar {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 12px;
+  }
+
+  .info-bar span { display: flex; align-items: center; gap: 6px; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); display: inline-block; }
+  .dot.warn { background: var(--danger); }
+
+  /* Toast */
+  #toast {
+    position: fixed;
+    bottom: 32px;
+    right: 32px;
+    background: var(--green);
+    color: #000;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 12px 20px;
+    border-radius: 8px;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: all 0.3s;
+    z-index: 999;
+    pointer-events: none;
+  }
+  #toast.show { opacity: 1; transform: translateY(0); }
+
+  @media (max-width: 600px) {
+    .form-row { grid-template-columns: 1fr; }
+    .actions { flex-direction: column; }
+    .btn { width: 100%; justify-content: center; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <div class="logo-area">
+      <h1>Generador de <span>Remitos</span></h1>
+      <p>Schneider Electric Argentina · Export .xlsx</p>
+    </div>
+    <div class="badge">GITHUB PAGES</div>
+  </header>
+
+  <!-- Datos del remito -->
+  <div class="section">
+    <div class="section-title">Datos del Remito</div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Número de Remito</label>
+        <input id="nroRemito" type="text" placeholder="0044-00167431">
+      </div>
+      <div class="form-group">
+        <label>Fecha</label>
+        <input id="fecha" type="date">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Cliente</label>
+        <input id="cliente" type="text" placeholder="BAGNOLS S.A.">
+      </div>
+      <div class="form-group">
+        <label>N° Pedido Cliente</label>
+        <input id="nroPedido" type="text" placeholder="I 133/25-RAMSAY">
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabla de ítems -->
+  <div class="section">
+    <div class="section-title">Ítems</div>
+
+    <div class="table-wrapper">
+      <table id="itemsTable">
+        <thead>
+          <tr>
+            <th style="width:80px">Item</th>
+            <th style="width:140px">Referencia</th>
+            <th>Descripción</th>
+            <th style="width:90px">Cantidad</th>
+            <th style="width:40px"></th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-ghost" onclick="addRow()">＋ Agregar fila</button>
+      <button class="btn btn-secondary" onclick="clearAll()">✕ Limpiar todo</button>
+    </div>
+
+    <div class="info-bar" id="infoBar"></div>
+  </div>
+
+  <!-- Exportar -->
+  <div class="actions">
+    <button class="btn btn-primary" onclick="exportExcel()">
+      ↓ Descargar Excel
+    </button>
+    <button class="btn btn-secondary" onclick="loadSampleData()">
+      Cargar datos de ejemplo
+    </button>
+  </div>
+
+</div>
+
+<div id="toast">✓ Excel generado correctamente</div>
+
+<script>
+const SAMPLE = [
+  { item: 10,       ref: "LVS04659", desc: "LINERGY LGYE 12 BASES JDB.VERT.2000-4000",  cant: 1 },
+  { item: 20,       ref: "LVS08607", desc: "ARMADURA P ANCHO650+150.PROF 600.ALTO 2M",  cant: 1 },
+  { item: "900001", ref: "LVS08607", desc: "ARMADURA P ANCHO650+150.PROF 600.ALTO 2M",  cant: 1 },
+  { item: "900002", ref: "LVS08607", desc: "ARMADURA P ANCHO650+150.PROF 600.ALTO 2M",  cant: 1 },
+  { item: "900003", ref: "LVS08607", desc: "ARMADURA P ANCHO650+150.PROF 600.ALTO 2M",  cant: 1 },
+  { item: "900004", ref: "LVS08607", desc: "ARMADURA P ANCHO650+150.PROF 600.ALTO 2M",  cant: 1 },
+  { item: "900005", ref: "LVS08607", desc: "ARMADURA P ANCHO650+150.PROF 600.ALTO 2M",  cant: 1 },
+  { item: "900006", ref: "LVS08607", desc: "ARMADURA P ANCHO650+150.PROF 600.ALTO 2M",  cant: 1 },
+];
+
+let rowId = 0;
+
+function getRows() {
+  return [...document.querySelectorAll('#tbody tr')].map(tr => ({
+    id:   tr.dataset.id,
+    item: tr.querySelector('.col-item').value.trim(),
+    ref:  tr.querySelector('.col-ref').value.trim().toUpperCase(),
+    desc: tr.querySelector('.col-desc').value.trim(),
+    cant: parseInt(tr.querySelector('.col-cant').value) || 0,
+  }));
+}
+
+function getRepeated() {
+  const rows = getRows();
+  const count = {};
+  rows.forEach(r => { if (r.ref) count[r.ref] = (count[r.ref] || 0) + 1; });
+  return new Set(Object.keys(count).filter(k => count[k] > 1));
+}
+
+function addRow(data = {}) {
+  const id = rowId++;
+  const tbody = document.getElementById('tbody');
+  const tr = document.createElement('tr');
+  tr.dataset.id = id;
+  tr.innerHTML = `
+    <td><input class="col-item" placeholder="10" value="${data.item ?? ''}"></td>
+    <td>
+      <input class="col-ref" placeholder="LVS08607" value="${data.ref ?? ''}" oninput="onRefChange()">
+      <span class="repeated-tag" style="display:none">×2</span>
+    </td>
+    <td><input class="col-desc" placeholder="Descripción del producto" value="${data.desc ?? ''}"></td>
+    <td><input class="col-cant" type="number" min="0" placeholder="1" value="${data.cant ?? ''}"></td>
+    <td><button class="btn-remove" onclick="removeRow(${id})" title="Eliminar">×</button></td>
+  `;
+  tbody.appendChild(tr);
+  updateUI();
+}
+
+function removeRow(id) {
+  document.querySelector(`tr[data-id="${id}"]`)?.remove();
+  updateUI();
+}
+
+function onRefChange() { updateUI(); }
+
+function updateUI() {
+  const repeated = getRepeated();
+  document.querySelectorAll('#tbody tr').forEach(tr => {
+    const refInput = tr.querySelector('.col-ref');
+    const tag = tr.querySelector('.repeated-tag');
+    const ref = refInput.value.trim().toUpperCase();
+    const isRep = repeated.has(ref);
+    refInput.classList.toggle('repeated', isRep);
+    tr.querySelector('.col-item').classList.toggle('repeated', isRep);
+    tr.querySelector('.col-desc').classList.toggle('repeated', isRep);
+    tr.querySelector('.col-cant').classList.toggle('repeated', isRep);
+    tag.style.display = isRep ? 'inline' : 'none';
+    if (isRep) tag.textContent = `×${[...document.querySelectorAll('.col-ref')].filter(i => i.value.trim().toUpperCase() === ref).length}`;
+  });
+
+  const rows = getRows().filter(r => r.ref || r.desc);
+  const total = rows.reduce((s, r) => s + r.cant, 0);
+  const repCount = repeated.size;
+
+  document.getElementById('infoBar').innerHTML = `
+    <span><span class="dot"></span>${rows.length} ítem${rows.length !== 1 ? 's' : ''}</span>
+    <span>Cantidad total: ${total}</span>
+    ${repCount ? `<span><span class="dot warn"></span>${repCount} referencia${repCount !== 1 ? 's' : ''} repetida${repCount !== 1 ? 's' : ''}</span>` : ''}
+  `;
+}
+
+function clearAll() {
+  if (!confirm('¿Limpiar todos los ítems?')) return;
+  document.getElementById('tbody').innerHTML = '';
+  updateUI();
+}
+
+function loadSampleData() {
+  document.getElementById('tbody').innerHTML = '';
+  document.getElementById('nroRemito').value = '0044-00167431';
+  document.getElementById('fecha').value = '2024-11-25';
+  document.getElementById('cliente').value = 'BAGNOLS S.A.';
+  document.getElementById('nroPedido').value = 'I 133/25-RAMSAY';
+  SAMPLE.forEach(addRow);
+}
+
+function exportExcel() {
+  const rows = getRows().filter(r => r.ref || r.desc || r.item);
+  if (!rows.length) { alert('Agregá al menos un ítem antes de exportar.'); return; }
+
+  const repeated = getRepeated();
+  const nro  = document.getElementById('nroRemito').value || 'SIN-NUMERO';
+  const fecha = document.getElementById('fecha').value || '';
+  const cliente = document.getElementById('cliente').value || '';
+  const pedido = document.getElementById('nroPedido').value || '';
+
+  const wb = XLSX.utils.book_new();
+  const wsData = [];
+
+  // Título
+  wsData.push([`REMITO N° ${nro} · ${cliente} · ${fecha}`]);
+  wsData.push([`N° Pedido: ${pedido}`]);
+  wsData.push([]);
+  wsData.push(['Item', 'Referencia', 'Descripción', 'Cantidad']);
+  rows.forEach(r => wsData.push([r.item, r.ref, r.desc, r.cant]));
+
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+  // Column widths
+  ws['!cols'] = [{ wch: 10 }, { wch: 18 }, { wch: 55 }, { wch: 12 }];
+
+  // Merge title
+  ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 3 } }];
+
+  // Style repeated rows (red)
+  const headerRow = 3; // 0-indexed row of headers
+  rows.forEach((r, i) => {
+    const excelRow = headerRow + 1 + i; // 0-indexed
+    if (repeated.has(r.ref)) {
+      ['A','B','C','D'].forEach(col => {
+        const addr = `${col}${excelRow + 1}`;
+        if (!ws[addr]) return;
+        ws[addr].s = {
+          font: { color: { rgb: 'CC0000' }, bold: true },
+        };
+      });
+    }
+  });
+
+  XLSX.utils.book_append_sheet(wb, ws, `Remito ${nro}`);
+  XLSX.writeFile(wb, `Remito_${nro.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx`);
+
+  const t = document.getElementById('toast');
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+// Init
+document.getElementById('fecha').value = new Date().toISOString().split('T')[0];
+addRow();
+</script>
+</body>
+</html>
